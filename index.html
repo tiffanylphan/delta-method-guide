@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Stats Newbie's Guide to the Delta Method</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1100px; margin: 0 auto; padding: 2rem; background: #fafafa; color: #1a1a2e; line-height: 1.6; }
+  h1 { text-align: center; font-size: 2rem; margin-bottom: 0.3rem; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+  h2 { color: #405cf5; border-bottom: 2px solid #405cf5; padding-bottom: 0.3rem; margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.4rem; }
+  h3 { color: #333; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+  p { margin: 0.5rem 0; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 2rem 0; }
+  ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+  li { margin: 0.3rem 0; }
+  .card { background: white; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card-blue { border-left: 4px solid #405cf5; }
+  .card-green { border-left: 4px solid #22c55e; }
+  .card-amber { border-left: 4px solid #f59e0b; }
+  .card-red { border-left: 4px solid #ef4444; }
+  .card-purple { border-left: 4px solid #8b5cf6; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th { background: #405cf5; color: white; padding: 0.6rem 1rem; text-align: left; font-weight: 600; }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid #e5e7eb; }
+  tr:nth-child(even) { background: #f8f9ff; }
+  code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9rem; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .formula { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem 1.5rem; margin: 1rem 0; font-family: 'Georgia', serif; font-size: 1.05rem; text-align: center; line-height: 1.8; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } body { padding: 1rem; } }
+  .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .tag-linear { background: #dcfce7; color: #166534; }
+  .tag-nonlinear { background: #fee2e2; color: #991b1b; }
+  .step-num { display: inline-block; width: 2rem; height: 2rem; background: #405cf5; color: white; border-radius: 50%; text-align: center; line-height: 2rem; font-weight: 700; margin-right: 0.5rem; }
+  .mermaid { margin: 1.5rem 0; }
+  .mermaid svg { max-width: 100%; height: auto; }
+  .attribution { text-align: center; color: #94a3b8; font-size: 0.85rem; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; }
+</style>
+</head>
+<body>
+
+<h1>A Stats Newbie's Guide to the Delta Method</h1>
+<div class="subtitle">Visual companion to William Chieng's guide &mdash; diagrammed for clarity</div>
+
+<hr>
+
+<h2>1. The Big Picture: When &amp; Why You Need the Delta Method</h2>
+
+<div class="card card-blue">
+<strong>The core problem:</strong> In experimentation, we need <em>variance</em> to build confidence intervals and determine statistical significance. But calculating variance correctly depends on whether our data points are independent.
+</div>
+
+<div class="mermaid">
+flowchart TD
+    START["&#127919; You have a metric you want to test<br/>(e.g., avg latency per request)"]
+    START --> Q1{"Is randomization unit<br/>== analysis unit?"}
+
+    Q1 -->|"Yes<br/>(e.g., randomize by request,<br/>analyze by request)"| SIMPLE["Simple metric<br/>Observations are i.i.d.<br/>Use standard variance formula"]
+    SIMPLE --> DONE["Construct confidence interval<br/>using variance"]
+
+    Q1 -->|"No<br/>(e.g., randomize by account,<br/>analyze by request)"| CLUSTER["Observations are CLUSTERED<br/>(requests within an account<br/>are correlated)"]
+    CLUSTER --> REWRITE["Rewrite as a ratio metric<br/>expressed in terms of<br/>the randomization unit"]
+
+    REWRITE --> Q2{"Does the ratio simplify<br/>to a simple metric?"}
+    Q2 -->|"Yes"| SIMPLE
+    Q2 -->|"No — it's still a ratio<br/>(nonlinear)"| DELTA["Apply the DELTA METHOD<br/>Linearize, approximate variance"]
+    DELTA --> DONE
+
+    Q3["Already have a ratio metric?"] --> Q4{"Is it expressed in terms of<br/>the randomization unit?"}
+    Q4 -->|"Yes"| Q2
+    Q4 -->|"No"| REWRITE
+
+    style START fill:#eff6ff,stroke:#405cf5,stroke-width:2px
+    style SIMPLE fill:#dcfce7,stroke:#22c55e,stroke-width:2px
+    style CLUSTER fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style REWRITE fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style DELTA fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px
+    style DONE fill:#dcfce7,stroke:#22c55e,stroke-width:2px
+    style Q3 fill:#f1f5f9,stroke:#64748b,stroke-width:1px
+    style Q4 fill:#fff,stroke:#64748b,stroke-width:1px
+    style Q1 fill:#fff,stroke:#64748b,stroke-width:1px
+    style Q2 fill:#fff,stroke:#64748b,stroke-width:1px
+</div>
+
+<hr>
+
+<h2>2. Key Concepts &mdash; How They Relate</h2>
+
+<div class="mermaid">
+graph LR
+    subgraph DS["Data Structure"]
+        POP["Population<br/>(all possible units)"]
+        SAM["Sample<br/>(observed units)"]
+        CLUST["Clustering<br/>(groups of correlated obs)"]
+        POP -->|"we observe a subset"| SAM
+        SAM -->|"grouped by<br/>randomization unit"| CLUST
+    end
+
+    subgraph STATS["Statistics We Compute"]
+        SM["Sample Mean<br/>avg of values"]
+        SV["Sample Variance<br/>spread of values"]
+        VSM["Variance of<br/>Sample Mean<br/>= var / n"]
+        COV["Covariance<br/>how two vars<br/>move together"]
+        CORR["Correlation<br/>normalized cov<br/>[-1, 1]"]
+        SV -->|"divide by sample size"| VSM
+        COV -->|"divide by both std devs"| CORR
+    end
+
+    subgraph DM["The Delta Method"]
+        RATIO["Ratio Metric<br/>mean_num / mean_den"]
+        LIN["Linearize<br/>via Taylor expansion"]
+        AVAR["Approximate<br/>Variance"]
+        RATIO -->|"nonlinear to linear"| LIN
+        LIN --> AVAR
+    end
+
+    SAM --> SM
+    SAM --> SV
+    SAM --> COV
+    SM --> RATIO
+    SV --> AVAR
+    COV --> AVAR
+    VSM --> AVAR
+
+    style POP fill:#f1f5f9,stroke:#64748b
+    style SAM fill:#eff6ff,stroke:#405cf5
+    style CLUST fill:#fef3c7,stroke:#f59e0b
+    style RATIO fill:#fee2e2,stroke:#ef4444
+    style AVAR fill:#dcfce7,stroke:#22c55e
+    style SM fill:#fff,stroke:#405cf5
+    style SV fill:#fff,stroke:#405cf5
+    style VSM fill:#fff,stroke:#405cf5
+    style COV fill:#fff,stroke:#405cf5
+    style CORR fill:#fff,stroke:#405cf5
+    style LIN fill:#fff,stroke:#8b5cf6
+</div>
+
+<hr>
+
+<h2>3. Clustering &mdash; Why It Matters</h2>
+
+<div class="grid-2">
+<div class="card card-green">
+<strong>Independent (between clusters)</strong>
+<p>Account A and Account B are <em>independent</em> &mdash; assigned separately to control/treatment.</p>
+<p>Each account = one randomization unit = one cluster.</p>
+</div>
+<div class="card card-red">
+<strong>Correlated (within a cluster)</strong>
+<p>Requests within Account A share network conditions, user behavior, etc.</p>
+<p>Request a1 and a2 are <em>not</em> independent &mdash; they're correlated.</p>
+</div>
+</div>
+
+<div class="mermaid">
+graph TD
+    subgraph ACCT_A["Account A (cluster)"]
+        direction LR
+        A1["Request a1<br/>10ms"] ~~~ A2["Request a2<br/>20ms"]
+    end
+    subgraph ACCT_B["Account B (cluster)"]
+        direction LR
+        B1["Request b1<br/>5ms"] ~~~ B2["Request b2<br/>20ms"] ~~~ B3["Request b3<br/>30ms"]
+    end
+
+    ACCT_A -.-|"independent"| ACCT_B
+    A1 <-->|"correlated"| A2
+    B1 <-->|"correlated"| B2
+    B2 <-->|"correlated"| B3
+
+    style ACCT_A fill:#eff6ff,stroke:#405cf5,stroke-width:2px
+    style ACCT_B fill:#eff6ff,stroke:#405cf5,stroke-width:2px
+    style A1 fill:#fef3c7,stroke:#f59e0b
+    style A2 fill:#fef3c7,stroke:#f59e0b
+    style B1 fill:#fef3c7,stroke:#f59e0b
+    style B2 fill:#fef3c7,stroke:#f59e0b
+    style B3 fill:#fef3c7,stroke:#f59e0b
+</div>
+
+<div class="card card-blue">
+<strong>Key insight:</strong> We can't compute variance directly on the request-level data because requests aren't i.i.d. But <em>accounts</em> are i.i.d. &mdash; so we rewrite the metric in terms of accounts.
+</div>
+
+<hr>
+
+<h2>4. Linear vs. Nonlinear &mdash; Why Ratios Are Tricky</h2>
+
+<div class="grid-2">
+<div class="card card-green">
+<h3><span class="tag tag-linear">LINEAR</span> Simple Mean</h3>
+<p>When randomization unit = analysis unit:</p>
+<div class="formula">
+avg = (x&#8321; + x&#8322; + &hellip; + x&#8345;) / n = (1/n)&middot;x&#8321; + (1/n)&middot;x&#8322; + &hellip;
+</div>
+<p>Multiply by constant, add up &rarr; <strong>linear!</strong></p>
+<p>Standard variance formula works.</p>
+</div>
+<div class="card card-red">
+<h3><span class="tag tag-nonlinear">NONLINEAR</span> Ratio of Means</h3>
+<p>When we rewrite for a different randomization unit:</p>
+<div class="formula">
+ratio = mean_numerator / mean_denominator
+</div>
+<p>Division of two random variables &rarr; <strong>nonlinear!</strong></p>
+<p>Can't naively compute variance. Need the <strong>Delta Method</strong>.</p>
+</div>
+</div>
+
+<div class="card card-amber">
+<strong>What goes wrong without the Delta Method?</strong>
+<ul>
+<li>Variance too small &rarr; false confidence &rarr; Type I errors (false positives)</li>
+<li>Variance too large &rarr; overcautious &rarr; Type II errors (miss real effects)</li>
+</ul>
+</div>
+
+<hr>
+
+<h2>5. The Computation Pipeline (Worked Example)</h2>
+
+<p>Running example: <strong>avg latency per request</strong>, randomized by <strong>account</strong>, analyzed by <strong>request</strong>.</p>
+
+<div class="mermaid">
+flowchart TD
+    subgraph RAW["Raw Data"]
+        R1["Acct A: 10ms, 20ms<br/>Acct B: 5ms, 20ms, 30ms"]
+    end
+
+    subgraph S1["Step 1: Aggregate to Randomization Unit"]
+        NUM["Numerator (sum latency)<br/>Acct A = 30ms<br/>Acct B = 55ms"]
+        DEN["Denominator (count requests)<br/>Acct A = 2<br/>Acct B = 3"]
+    end
+
+    subgraph S2["Step 2: Compute Statistics"]
+        SM_N["mean_S = mean(30, 55)<br/>= 42.5 ms"]
+        SM_D["mean_N = mean(2, 3)<br/>= 2.5 requests"]
+        SV_N["var_S = var(30, 55)<br/>= 312.5 ms squared"]
+        SV_D["var_N = var(2, 3)<br/>= 0.5 req squared"]
+        COV_ND["cov_SN = cov(latency, requests)<br/>= 12.5"]
+    end
+
+    subgraph S3["Step 3: Delta Method Formula"]
+        FORMULA["Var = (1 / K * mean_N squared) *<br/>(var_S - 2*(mean_S/mean_N)*cov_SN<br/>+ (mean_S/mean_N) squared * var_N)"]
+    end
+
+    subgraph RESULT["Result"]
+        CI["Approximate variance<br/>leads to Confidence interval<br/>leads to Statistical significance"]
+    end
+
+    RAW --> S1
+    S1 --> S2
+    S2 --> S3
+    S3 --> RESULT
+
+    style RAW fill:#f1f5f9,stroke:#64748b,stroke-width:2px
+    style S1 fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style S2 fill:#eff6ff,stroke:#405cf5,stroke-width:2px
+    style S3 fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px
+    style RESULT fill:#dcfce7,stroke:#22c55e,stroke-width:2px
+</div>
+
+<h3>Step-by-Step with Numbers</h3>
+
+<div class="card card-amber">
+<strong><span class="step-num">1</span> Aggregate to randomization unit (account)</strong>
+
+<table>
+<tr><th></th><th>Account A</th><th>Account B</th></tr>
+<tr><td><strong>Numerator</strong> (sum of latency)</td><td>10 + 20 = <strong>30 ms</strong></td><td>5 + 20 + 30 = <strong>55 ms</strong></td></tr>
+<tr><td><strong>Denominator</strong> (count of requests)</td><td><strong>2</strong></td><td><strong>3</strong></td></tr>
+</table>
+
+<p>Now each observation is one <em>account</em> &mdash; and accounts are i.i.d.!</p>
+</div>
+
+<div class="card card-blue">
+<strong><span class="step-num">2</span> Compute sample statistics</strong> (with Bessel's correction, n&minus;1)
+
+<table>
+<tr><th>Statistic</th><th>Formula</th><th>Value</th></tr>
+<tr><td><strong>&mu;_S</strong> (mean numerator)</td><td>(30 + 55) / 2</td><td><strong>42.5 ms</strong></td></tr>
+<tr><td><strong>&mu;_N</strong> (mean denominator)</td><td>(2 + 3) / 2</td><td><strong>2.5 requests</strong></td></tr>
+<tr><td><strong>&sigma;&sup2;_S</strong> (var numerator)</td><td>((30&minus;42.5)&sup2; + (55&minus;42.5)&sup2;) / 1</td><td><strong>312.5 ms&sup2;</strong></td></tr>
+<tr><td><strong>&sigma;&sup2;_N</strong> (var denominator)</td><td>((2&minus;2.5)&sup2; + (3&minus;2.5)&sup2;) / 1</td><td><strong>0.5 req&sup2;</strong></td></tr>
+<tr><td><strong>&sigma;_SN</strong> (covariance)</td><td>((30&minus;42.5)(2&minus;2.5) + (55&minus;42.5)(3&minus;2.5)) / 1</td><td><strong>12.5</strong></td></tr>
+</table>
+</div>
+
+<div class="card card-purple">
+<strong><span class="step-num">3</span> Plug into the Delta Method</strong>
+<p>K = 2 accounts</p>
+
+<div class="formula">
+Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus; 2&middot;(&mu;_S/&mu;_N)&middot;&sigma;_SN + (&mu;_S/&mu;_N)&sup2;&middot;&sigma;&sup2;_N)
+</div>
+
+<div class="formula">
+= (1 / (2 &middot; 2.5&sup2;)) &times; (312.5 &minus; 2&middot;(42.5/2.5)&middot;12.5 + (42.5/2.5)&sup2;&middot;0.5)
+</div>
+
+<div class="formula">
+= (1 / 12.5) &times; (312.5 &minus; 425 + 144.5) = (1/12.5) &times; 32 = <strong>2.56</strong>
+</div>
+</div>
+
+<hr>
+
+<h2>6. Formula Variable Mapping</h2>
+
+<p>A cheat-sheet for connecting the math notation to the implementation:</p>
+
+<table>
+<tr><th>Math Symbol</th><th>Meaning</th><th>DB Column</th><th>StaaS API Param</th></tr>
+<tr><td><strong>K</strong></td><td>Number of randomization units</td><td><code>units_in_results_count</code></td><td><code>unit_count</code></td></tr>
+<tr><td><strong>&mu;_N</strong></td><td>Mean of denominator</td><td>&mdash; (derived)</td><td><code>sum_denominator</code> &divide; <code>unit_count</code></td></tr>
+<tr><td><strong>&mu;_S</strong></td><td>Mean of numerator</td><td>&mdash; (derived)</td><td><code>sum_numerator</code> &divide; <code>unit_count</code></td></tr>
+<tr><td><strong>&sigma;&sup2;_N</strong></td><td>Variance of denominator</td><td><code>sum_squares_denominator</code></td><td><code>sum_squares_denominator</code> &divide; (<code>unit_count</code>&minus;1)</td></tr>
+<tr><td><strong>&sigma;&sup2;_S</strong></td><td>Variance of numerator</td><td><code>sum_squares_numerator</code></td><td><code>sum_squares_numerator</code> &divide; (<code>unit_count</code>&minus;1)</td></tr>
+<tr><td><strong>&sigma;_SN</strong></td><td>Covariance of num &amp; den</td><td><code>sum_xy</code></td><td><code>sum_xy</code> &divide; (<code>unit_count</code>&minus;1)</td></tr>
+</table>
+
+<hr>
+
+<h2>7. Quick Reference: Concept Glossary</h2>
+
+<table>
+<tr><th>Concept</th><th>One-liner</th><th>Why it matters</th></tr>
+<tr><td><strong>Clustering</strong></td><td>Observations grouped by randomization unit</td><td>Within-group data is correlated, not i.i.d.</td></tr>
+<tr><td><strong>Sample Mean</strong></td><td>Average of observed values</td><td>The point estimate we compare between arms</td></tr>
+<tr><td><strong>Sample Variance</strong></td><td>Avg squared deviation from mean</td><td>Measures spread; needed for confidence intervals</td></tr>
+<tr><td><strong>Variance of Sample Mean</strong></td><td>var / n (when i.i.d.)</td><td>How much the sample mean itself would vary</td></tr>
+<tr><td><strong>Covariance</strong></td><td>How two variables move together</td><td>Needed because numerator and denominator are related</td></tr>
+<tr><td><strong>Correlation</strong></td><td>Covariance normalized to [-1, 1]</td><td>Used in CUPED, not directly in Delta Method</td></tr>
+<tr><td><strong>Linear Combination</strong></td><td>f(x) that graphs as a line</td><td>Standard variance rules apply</td></tr>
+<tr><td><strong>Ratio Metric</strong></td><td>mean_A / mean_B</td><td><strong>Nonlinear</strong> &mdash; needs Delta Method for variance</td></tr>
+<tr><td><strong>Delta Method</strong></td><td>Linearize via Taylor expansion</td><td>Converts nonlinear &rarr; linear, gives approximate variance</td></tr>
+</table>
+
+<hr>
+
+<div class="card card-blue" style="text-align:center;">
+<strong>TL;DR in three steps:</strong><br><br>
+<span class="step-num">1</span> Rewrite metric in terms of randomization unit (makes it a ratio) &nbsp;&nbsp;
+<span class="step-num">2</span> Compute sample means, variances, covariance &nbsp;&nbsp;
+<span class="step-num">3</span> Plug into Delta Method formula for approximate variance
+</div>
+
+<div class="attribution">
+  Based on "A Stats Newbie's Guide to the Delta Method" by William Chieng<br>
+  via LD Research
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#eff6ff',
+      primaryTextColor: '#1a1a2e',
+      primaryBorderColor: '#405cf5',
+      lineColor: '#64748b',
+      secondaryColor: '#f8f9ff',
+      tertiaryColor: '#fff',
+      fontSize: '14px'
+    },
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true,
+      curve: 'basis'
+    }
+  });
+</script>
+</body>
+</html>
