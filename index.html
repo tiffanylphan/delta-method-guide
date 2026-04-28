@@ -269,25 +269,44 @@ ratio = mean_numerator / mean_denominator
 
 <hr>
 
-<h2>6. Why We Need the Delta Method &mdash; The Core Intuition</h2>
+<h2>6. What Is the Delta Method?</h2>
 
-<div class="card card-blue">
-<strong>The fundamental problem:</strong> We know how to compute the variance of a <em>linear</em> combination of variables. But a ratio (X/Y) is <em>not</em> linear. There is no clean formula for the variance of a ratio. The Delta Method gives us one by converting the problem into a linear one.
+<div class="card card-purple">
+<h3>Definition in plain English</h3>
+<p>The <strong>Delta Method</strong> is a technique for computing the <em>approximate variance</em> of a function of random variables &mdash; specifically when that function is nonlinear (like a ratio).</p>
+<p>It works in three steps:</p>
+<ol>
+<li>Take your nonlinear function (e.g., X/Y) and <strong>approximate it as a linear function</strong> near the average values</li>
+<li>Because it's now linear, <strong>use the standard variance formula</strong> that only works for linear functions</li>
+<li>The result is an <strong>approximate</strong> (not exact) variance &mdash; good enough for practical use, especially with large sample sizes</li>
+</ol>
+<p>That's it. The Delta Method is just a way to <strong>turn a hard problem (variance of a nonlinear function) into an easy problem (variance of a linear function)</strong> by using an approximation.</p>
 </div>
 
-<h3>For linear functions, variance has a clean rule</h3>
+<hr>
 
-<p>If your metric is a linear combination like <code>f(X, Y) = aX + bY</code>, there's an exact formula:</p>
+<h2>7. How the Delta Method Works &mdash; Step by Step</h2>
 
+<h3>The setup: two worlds of variance</h3>
+
+<p>There are two kinds of functions you might want to compute variance for. One has a formula. The other doesn't.</p>
+
+<div class="grid-2">
+<div class="card card-green">
+<h3>Linear functions</h3>
+<p>A function like <code>f(X, Y) = aX + bY</code> &mdash; multiply by constants, add up.</p>
+<p>There's an <strong>exact formula</strong> for variance:</p>
 <div class="formula">
 Var(aX + bY) = a&sup2;&middot;Var(X) + b&sup2;&middot;Var(Y) + 2ab&middot;Cov(X, Y)
 </div>
-
 <p>This works because the function is a straight line &mdash; the spread of the output is a predictable, proportional transformation of the spread of the inputs.</p>
-
-<h3>For a ratio, that rule breaks down</h3>
-
-<p>A ratio <code>f(X, Y) = X / Y</code> is a curve, not a line. Small changes in Y (the denominator) can cause disproportionately large swings in the output. There is <strong>no exact closed-form formula</strong> for Var(X/Y).</p>
+</div>
+<div class="card card-red">
+<h3>Nonlinear functions (like a ratio)</h3>
+<p>A function like <code>f(X, Y) = X / Y</code> &mdash; division of two variables.</p>
+<p>There is <strong>no exact formula</strong> for Var(X/Y). Small changes in Y (the denominator) can cause disproportionately large swings in the output. The linear variance rule simply doesn't apply.</p>
+</div>
+</div>
 
 <div class="mermaid">
 flowchart LR
@@ -313,25 +332,70 @@ flowchart LR
     style N_OUT fill:#fecaca,stroke:#ef4444
 </div>
 
-<h3>The Delta Method: zoom in until the curve looks like a line</h3>
+<h3>The key insight: zoom in until the curve looks like a line</h3>
+
+<div class="card card-blue">
+<p>Think about any smooth curve &mdash; like a hill or a parabola. If you zoom in close enough to a single point on the curve, it starts to look like a straight line. This is actually the idea behind derivatives in calculus: the derivative at a point tells you the slope of that tiny straight line.</p>
+<p>The Delta Method uses this insight. It says: <em>"I can't compute variance for a curve, but I can for a straight line. So let me zoom in on the curve at the point where our data is centered (the mean), replace the curve with the straight line that matches it there, and compute variance on that line instead."</em></p>
+</div>
+
+<h3>An analogy: the flat board on a hillside</h3>
+
+<div class="card card-green">
+<p>Imagine you're standing on a curved hillside and want to know how tilted the ground is beneath your feet. The hill is curved, so there's no single "tilt" for the whole hill. But if you put a flat board under your feet, that board's angle <em>approximates</em> the tilt at your exact spot.</p>
+<ul>
+<li>The <strong>curved hill</strong> = the nonlinear ratio function (X/Y)</li>
+<li>The <strong>flat board</strong> = the linear approximation the Delta Method creates</li>
+<li><strong>Your feet</strong> = the mean values (where the data is centered)</li>
+<li><strong>The board's angle</strong> = the approximate variance we compute</li>
+</ul>
+<p>The approximation is good when you're close to the mean (standing in one spot). It gets worse the farther out you go &mdash; which is why the Delta Method works well with <strong>large sample sizes</strong>, where sample means cluster tightly around the true mean.</p>
+</div>
+
+<h3>The math behind it (jargon-free walkthrough)</h3>
+
+<p>Here's what the Delta Method actually does, step by step. Each step builds on the last:</p>
+
+<div class="card card-amber">
+<strong>Step 1 &mdash; "Taylor expand" = replace the curve with a line</strong>
+<p>We have the function f(X, Y) = X / Y. We pick a point to center on: the mean values (&mu;_X, &mu;_Y). Then we write an approximation that says:</p>
+<div class="formula">
+f(X, Y) &asymp; f(&mu;_X, &mu;_Y) + (slope in X direction) &times; (X &minus; &mu;_X) + (slope in Y direction) &times; (Y &minus; &mu;_Y)
+</div>
+<p>This is called a <strong>first-order Taylor expansion</strong>. "First-order" means we only keep the straight-line part and throw away the curvature. The result is a linear function of X and Y &mdash; exactly the kind we know how to compute variance for.</p>
+</div>
+
+<div class="card card-blue">
+<strong>Step 2 &mdash; Compute the slopes (partial derivatives)</strong>
+<p>The "slopes" in the formula above are just partial derivatives &mdash; they tell you how fast the output changes when you nudge one input while holding the other fixed:</p>
+<ul>
+<li><strong>Slope in X direction:</strong> If X (the numerator) goes up by 1, the ratio goes up by 1/&mu;_Y</li>
+<li><strong>Slope in Y direction:</strong> If Y (the denominator) goes up by 1, the ratio goes <em>down</em> by &mu;_X/&mu;_Y&sup2;</li>
+</ul>
+<p>The denominator's slope is negative &mdash; which makes intuitive sense: if you divide by a bigger number, the result gets smaller.</p>
+</div>
 
 <div class="card card-purple">
-<p><strong>Key idea:</strong> Any smooth curve, if you zoom in close enough to a single point, looks like a straight line. This is the same insight behind derivatives in calculus &mdash; the derivative at a point <em>is</em> the slope of that line.</p>
-<p>The Delta Method uses a <strong>Taylor series expansion</strong> (a first-order approximation) to replace the curved ratio function with a flat, linear approximation around the mean values. Once it's linear, we can use the standard variance formula.</p>
+<strong>Step 3 &mdash; Apply the linear variance formula</strong>
+<p>Now that we have a linear approximation with known slopes (a and b), we plug into the variance formula we already know:</p>
+<div class="formula">
+Var(ratio) &asymp; (1/&mu;_Y)&sup2; &middot; Var(X) + (&mu;_X/&mu;_Y&sup2;)&sup2; &middot; Var(Y) &minus; 2 &middot; (&mu;_X/&mu;_Y&sup3;) &middot; Cov(X, Y)
+</div>
+<p>This is the <strong>Delta Method formula</strong>. It's approximate (because we threw away the curvature in Step 1), but it's a very good approximation with large enough samples.</p>
 </div>
 
 <div class="mermaid">
 flowchart TD
     RATIO["We have f(X, Y) = X / Y<br/>(a curved, nonlinear function)"]
-    TAYLOR["Taylor-expand around the means (μ_X, μ_Y):<br/><br/>f(X,Y) ≈ f(μ_X, μ_Y)<br/>+ f'_x · (X − μ_X)<br/>+ f'_y · (Y − μ_Y)<br/><br/>This is now LINEAR in X and Y"]
-    DERIV["Compute the partial derivatives:<br/><br/>f'_x = ∂(X/Y)/∂X = 1/μ_Y<br/>f'_y = ∂(X/Y)/∂Y = −μ_X/μ_Y²"]
-    VARFORM["Now it's linear, so apply the<br/>standard variance formula:<br/><br/>Var ≈ (1/μ_Y)²·Var(X)<br/>+ (μ_X/μ_Y²)²·Var(Y)<br/>− 2·(μ_X/μ_Y³)·Cov(X,Y)"]
-    RESULT["Approximate variance of<br/>the ratio metric"]
+    TAYLOR["Step 1: Replace the curve with a line<br/>(Taylor expansion around the means)<br/><br/>f(X,Y) ≈ constant<br/>+ slope_X · (X − mean_X)<br/>+ slope_Y · (Y − mean_Y)<br/><br/>This is now a LINEAR function"]
+    DERIV["Step 2: Compute the slopes<br/>(partial derivatives)<br/><br/>slope_X = 1 / mean_Y<br/>slope_Y = −mean_X / mean_Y²"]
+    VARFORM["Step 3: Plug slopes into<br/>the linear variance formula<br/><br/>Var ≈ slope_X² · Var(X)<br/>+ slope_Y² · Var(Y)<br/>+ 2 · slope_X · slope_Y · Cov(X,Y)"]
+    RESULT["Approximate variance<br/>of the ratio metric"]
 
-    RATIO -->|"Step 1: Linearize"| TAYLOR
-    TAYLOR -->|"Step 2: Take derivatives"| DERIV
-    DERIV -->|"Step 3: Plug into<br/>linear variance rule"| VARFORM
-    VARFORM -->|"Done!"| RESULT
+    RATIO -->|"Can't compute variance<br/>for a curve"| TAYLOR
+    TAYLOR -->|"Now it's linear!"| DERIV
+    DERIV -->|"We know the slopes"| VARFORM
+    VARFORM -->|"Done"| RESULT
 
     style RATIO fill:#fee2e2,stroke:#ef4444,stroke-width:2px
     style TAYLOR fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
@@ -340,14 +404,7 @@ flowchart TD
     style RESULT fill:#dcfce7,stroke:#22c55e,stroke-width:2px
 </div>
 
-<h3>An analogy</h3>
-
-<div class="card card-green">
-<p>Imagine you're standing on a hillside and want to know how tilted the ground is beneath your feet. The hill is curved (nonlinear), so there's no single "tilt" for the whole hill. But if you put a flat board under your feet, that board's angle <em>approximates</em> the tilt at your exact spot. That flat board is the Taylor approximation &mdash; and the Delta Method is using that board to compute variance.</p>
-<p>The approximation is good when you're close to the mean (standing in one spot). It gets worse the farther out you go &mdash; which is why the Delta Method works well with large sample sizes (where sample means cluster tightly around the true mean).</p>
-</div>
-
-<h3>Putting it all together</h3>
+<h3>The full pipeline: from ratio to significance</h3>
 
 <div class="mermaid">
 flowchart LR
@@ -367,7 +424,7 @@ flowchart LR
 
 <hr>
 
-<h2>7. The Computation Pipeline (Worked Example)</h2>
+<h2>8. The Computation Pipeline (Worked Example)</h2>
 
 <p>Running example: <strong>avg latency per request</strong>, randomized by <strong>account</strong>, analyzed by <strong>request</strong>.</p>
 
@@ -456,7 +513,7 @@ Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus;
 
 <hr>
 
-<h2>8. Formula Variable Mapping</h2>
+<h2>9. Formula Variable Mapping</h2>
 
 <p>A cheat-sheet for connecting the math notation to the implementation:</p>
 
@@ -472,7 +529,7 @@ Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus;
 
 <hr>
 
-<h2>9. Quick Reference: Concept Glossary</h2>
+<h2>10. Quick Reference: Concept Glossary</h2>
 
 <table>
 <tr><th>Concept</th><th>One-liner</th><th>Why it matters</th></tr>
@@ -484,7 +541,7 @@ Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus;
 <tr><td><strong>Correlation</strong></td><td>Covariance normalized to [-1, 1]</td><td>Used in CUPED, not directly in Delta Method</td></tr>
 <tr><td><strong>Linear Combination</strong></td><td>f(x) that graphs as a line</td><td>Standard variance rules apply</td></tr>
 <tr><td><strong>Ratio Metric</strong></td><td>mean_A / mean_B</td><td><strong>Nonlinear</strong> &mdash; needs Delta Method for variance</td></tr>
-<tr><td><strong>Delta Method</strong></td><td>Linearize via Taylor expansion</td><td>Converts nonlinear &rarr; linear, gives approximate variance</td></tr>
+<tr><td><strong>Delta Method</strong></td><td>Approximate a curve as a line near the mean, then compute variance on that line</td><td>Only way to get variance for a ratio (nonlinear) metric</td></tr>
 </table>
 
 <hr>
