@@ -58,7 +58,7 @@ flowchart TD
     START["&#127919; You have a metric you want to test<br/>(e.g., avg latency per request)"]
     START --> Q1{"Is randomization unit<br/>== analysis unit?"}
 
-    Q1 -->|"Yes<br/>(e.g., randomize by request,<br/>analyze by request)"| SIMPLE["Simple metric<br/>Observations are i.i.d.<br/>Use standard variance formula"]
+    Q1 -->|"Yes<br/>(e.g., randomize by request,<br/>analyze by request)"| SIMPLE["Simple metric<br/>Observations are independent<br/>Use standard variance formula"]
     SIMPLE --> DONE["Construct confidence interval<br/>using variance"]
 
     Q1 -->|"No<br/>(e.g., randomize by account,<br/>analyze by request)"| CLUSTER["Observations are CLUSTERED<br/>(requests within an account<br/>are correlated)"]
@@ -87,7 +87,57 @@ flowchart TD
 
 <hr>
 
-<h2>2. Key Concepts &mdash; How They Relate</h2>
+<h2>2. What Does "i.i.d." Mean?</h2>
+
+<div class="card card-blue">
+<p>You'll see the term <strong>i.i.d.</strong> a lot in statistics. It stands for <strong>independent and identically distributed</strong> &mdash; two properties that your data points need to have for most standard statistical formulas to work.</p>
+</div>
+
+<div class="grid-2">
+<div class="card card-green">
+<h3>Independent</h3>
+<p>One observation doesn't influence or tell you anything about another.</p>
+<p><strong>Example:</strong> Flipping a coin &mdash; getting heads on flip 1 tells you nothing about flip 2. Each flip is independent.</p>
+<p><strong>Counter-example:</strong> Two requests from the same account &mdash; if one is slow (maybe the account's network is congested), the other is likely slow too. They are <em>not</em> independent.</p>
+</div>
+<div class="card card-green">
+<h3>Identically Distributed</h3>
+<p>Every observation is drawn from the same underlying process &mdash; same probability distribution, same rules.</p>
+<p><strong>Example:</strong> Every account in the experiment is drawn from the same pool of accounts, under the same conditions.</p>
+<p><strong>Counter-example:</strong> Mixing data from free-tier accounts and enterprise accounts without accounting for the difference &mdash; they come from different distributions.</p>
+</div>
+</div>
+
+<div class="mermaid">
+flowchart TD
+    IID["Are your observations i.i.d.?<br/>(independent and identically distributed)"]
+
+    YES["Standard formulas work<br/><br/>Var(sample mean) = Var(data) / n<br/>Cov(mean_X, mean_Y) = Cov(X,Y) / n<br/><br/>These clean shortcuts ONLY hold<br/>when observations are i.i.d."]
+
+    NO["Standard formulas give WRONG answers<br/><br/>Correlated data points carry<br/>less 'new information' than<br/>independent ones, so naive formulas<br/>underestimate the true variance"]
+
+    FIX["Fix: aggregate to a level<br/>where observations ARE i.i.d.<br/>(the randomization unit)<br/>then use the Delta Method if needed"]
+
+    IID -->|"Yes"| YES
+    IID -->|"No"| NO
+    NO --> FIX
+    FIX -->|"now they're i.i.d."| YES
+
+    style IID fill:#fff,stroke:#64748b,stroke-width:2px
+    style YES fill:#dcfce7,stroke:#22c55e,stroke-width:2px
+    style NO fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+    style FIX fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+</div>
+
+<div class="card card-amber">
+<strong>Why does i.i.d. matter so much?</strong>
+<p>The formula <code>Var(sample mean) = Var(data) / n</code> assumes each data point contributes one "unit" of new information. But if data points are correlated (not independent), some of that information is redundant &mdash; like asking the same person the same question twice. The formula would say you have more precision than you actually do, leading to overconfident results.</p>
+<p>That's why we aggregate to the <strong>randomization unit</strong> (e.g., account) &mdash; at that level, observations <em>are</em> i.i.d., and the formulas work correctly.</p>
+</div>
+
+<hr>
+
+<h2>3. Key Concepts &mdash; How They Relate</h2>
 
 <div class="mermaid">
 graph LR
@@ -140,7 +190,7 @@ graph LR
 
 <hr>
 
-<h2>3. Clustering &mdash; Why It Matters</h2>
+<h2>4. Clustering &mdash; Why It Matters</h2>
 
 <div class="grid-2">
 <div class="card card-green">
@@ -181,12 +231,12 @@ graph TD
 </div>
 
 <div class="card card-blue">
-<strong>Key insight:</strong> We can't compute variance directly on the request-level data because requests aren't i.i.d. But <em>accounts</em> are i.i.d. &mdash; so we rewrite the metric in terms of accounts.
+<strong>Key insight:</strong> We can't compute variance directly on the request-level data because requests aren't independent (they're correlated within accounts). But <em>accounts</em> are independent &amp; identically distributed &mdash; so we rewrite the metric in terms of accounts.
 </div>
 
 <hr>
 
-<h2>4. Linear vs. Nonlinear &mdash; Why Ratios Are Tricky</h2>
+<h2>5. Linear vs. Nonlinear &mdash; Why Ratios Are Tricky</h2>
 
 <div class="grid-2">
 <div class="card card-green">
@@ -219,7 +269,7 @@ ratio = mean_numerator / mean_denominator
 
 <hr>
 
-<h2>5. Why We Need the Delta Method &mdash; The Core Intuition</h2>
+<h2>6. Why We Need the Delta Method &mdash; The Core Intuition</h2>
 
 <div class="card card-blue">
 <strong>The fundamental problem:</strong> We know how to compute the variance of a <em>linear</em> combination of variables. But a ratio (X/Y) is <em>not</em> linear. There is no clean formula for the variance of a ratio. The Delta Method gives us one by converting the problem into a linear one.
@@ -317,7 +367,7 @@ flowchart LR
 
 <hr>
 
-<h2>6. The Computation Pipeline (Worked Example)</h2>
+<h2>7. The Computation Pipeline (Worked Example)</h2>
 
 <p>Running example: <strong>avg latency per request</strong>, randomized by <strong>account</strong>, analyzed by <strong>request</strong>.</p>
 
@@ -371,7 +421,7 @@ flowchart TD
 <tr><td><strong>Denominator</strong> (count of requests)</td><td><strong>2</strong></td><td><strong>3</strong></td></tr>
 </table>
 
-<p>Now each observation is one <em>account</em> &mdash; and accounts are i.i.d.!</p>
+<p>Now each observation is one <em>account</em> &mdash; and accounts are independent &amp; identically distributed!</p>
 </div>
 
 <div class="card card-blue">
@@ -406,7 +456,7 @@ Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus;
 
 <hr>
 
-<h2>7. Formula Variable Mapping</h2>
+<h2>8. Formula Variable Mapping</h2>
 
 <p>A cheat-sheet for connecting the math notation to the implementation:</p>
 
@@ -422,14 +472,14 @@ Var(&Yacute;) = (1 / (K &middot; &mu;_N&sup2;)) &times; (&sigma;&sup2;_S &minus;
 
 <hr>
 
-<h2>8. Quick Reference: Concept Glossary</h2>
+<h2>9. Quick Reference: Concept Glossary</h2>
 
 <table>
 <tr><th>Concept</th><th>One-liner</th><th>Why it matters</th></tr>
-<tr><td><strong>Clustering</strong></td><td>Observations grouped by randomization unit</td><td>Within-group data is correlated, not i.i.d.</td></tr>
+<tr><td><strong>Clustering</strong></td><td>Observations grouped by randomization unit</td><td>Within-group data is correlated, not independent</td></tr>
 <tr><td><strong>Sample Mean</strong></td><td>Average of observed values</td><td>The point estimate we compare between arms</td></tr>
 <tr><td><strong>Sample Variance</strong></td><td>Avg squared deviation from mean</td><td>Measures spread; needed for confidence intervals</td></tr>
-<tr><td><strong>Variance of Sample Mean</strong></td><td>var / n (when i.i.d.)</td><td>How much the sample mean itself would vary</td></tr>
+<tr><td><strong>Variance of Sample Mean</strong></td><td>var / n (when observations are independent)</td><td>How much the sample mean itself would vary</td></tr>
 <tr><td><strong>Covariance</strong></td><td>How two variables move together</td><td>Needed because numerator and denominator are related</td></tr>
 <tr><td><strong>Correlation</strong></td><td>Covariance normalized to [-1, 1]</td><td>Used in CUPED, not directly in Delta Method</td></tr>
 <tr><td><strong>Linear Combination</strong></td><td>f(x) that graphs as a line</td><td>Standard variance rules apply</td></tr>
